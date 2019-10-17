@@ -1,9 +1,9 @@
 import requests
 import json
 import ratelimit
-import inquirer
 import networkx as nx
 import gui
+import PyInquirer
 
 from pymongo import MongoClient
 
@@ -30,7 +30,10 @@ def paper_from_paperid(paperid, collection_name='papers', refresh=False):
 
     # query SemanticScholar
     query = S_PAPER_URI + paperid
-    response = rl_get(query)
+    response = rl_get(query, timeout=5)
+    if response.status_code != 200:
+        return None
+
     dct = response.json()
 
     # cache the response
@@ -60,8 +63,14 @@ def topic_exists(topic_name):
 
 def create_topic():
     '''create a new topic, unless it already exists'''
-    questions = [inquirer.Text('topic_name', message="Topic name")]
-    answers = inquirer.prompt(questions)
+    questions = [
+        {
+            'type': 'input',
+            'name': 'topic_name',
+            'message': 'Topic name',
+        },
+    ]
+    answers = PyInquirer.prompt(questions)
     topic_name = answers['topic_name']
     if topic_exists(topic_name):
         print('A topic with that name already exists')
@@ -78,13 +87,14 @@ def select_topic():
         return None
     topics.append('cancel')
     questions = [
-        inquirer.List(
-            'topic_name',
-            message="Select a topic",
-            choices=topics,
-        ),
+        {
+            'type': 'list',
+            'name': 'topic_name',
+            'message': 'Select a topic',
+            'choices': topics,
+        },
     ]
-    answers = inquirer.prompt(questions)
+    answers = PyInquirer.prompt(questions)
     return answers['topic_name']
 
 def delete_topic():
@@ -101,8 +111,14 @@ def delete_topic():
 
 def query_paper_ids():
     '''query the user for paper ids'''
-    questions = [inquirer.Editor('paper_ids', message="Add one paper ID per line")]
-    answers = inquirer.prompt(questions)
+    questions = [
+        {
+            'type': 'editor',
+            'name': 'paper_ids',
+            'message': 'Add one paper ID per line',
+        }
+    ]
+    answers = PyInquirer.prompt(questions)
     paper_ids = [paper_id.strip() for paper_id in answers['paper_ids'].split('\n')]
     return [paper_id for paper_id in paper_ids if len(paper_id)]
 
@@ -174,12 +190,14 @@ def remove_papers_from_topic(topic):
     papers = [paper_from_paperid(paper_id) for paper_id in topic['papers']]
     choices = sorted([paper['title'] for paper in papers])
     paperid_from_title = {paper['title']: paper['paperId'] for paper in papers}
-    questions = [inquirer.Checkbox(
-        'choices',
-        message="Select papers to remove from the topic",
-        choices=choices,
-    )]
-    answers = inquirer.prompt(questions)
+    questions = [
+        {
+            'type': 'checkbox',
+            'message': 'Select papers to remove from the topic',
+            'choices': choices,
+        },
+    ]
+    answers = PyInquirer.prompt(questions)
     selected_ids = {paperid_from_title[choice] for choice in answers['choices']}
     topic['papers'] = list(set(topic['papers']) - selected_ids)
     return
@@ -300,73 +318,44 @@ def topic_connectedness(topic_ids, paper):
     citations_in_topic = sum((citation['paperId'] in topic_ids for citation in paper['citations']))
     return refs_in_topic * citations_in_topic
 
-def ui_discover_topic_old(topic):
-    '''discover new papers on a topic'''
-    topic_ids = set(topic['papers'])
-    references = set(topic['references'])
-
-    # collects IDs of all papers adjacent to papers on the topic
-    queue = set(adjacent_paperids(topic_ids))
-
-    # get the new papers
-    new_papers = list(ui_papers_from_paperids(queue))
-
-    # for each paper compute how connected it is to the topic
-    connectedness = [topic_connectedness(topic_ids, paper) for paper in new_papers]
-
-    # sort them by number of connections to the topic
-    v = sorted(zip(new_papers, connectedness), key=lambda x: x[1], reverse=True)
-
-    # mark new papers as on the topic or an external reference
-    choices = [f'[{connections}] ' + paper['title'] for paper, connections in v]
-    paperid_from_choice = {choice: paper['paperId'] for choice, (paper, _) in zip(choices, v)}
-    questions = [inquirer.Checkbox(
-        'choices',
-        message="Select papers to add to the topic",
-        choices=choices,
-    )]
-    answers = inquirer.prompt(questions)
-    selected_ids = [paperid_from_choice[choice] for choice in answers['choices']]
-    for paper_id in selected_ids:
-        print('Adding:', paper_from_paperid(paper_id)['title'])
-        topic_ids.add(paper_id)
-    topic['papers'] = list(topic_ids)
-    return
-
 def ui_discover_topic(topic):
     '''discover new papers on the topic'''
     topic_ids = set(topic['papers'])
 
     # find the set of papers that cite papers on the topic
     topic_citation_ids = set()
-    for paper_id in topic_ids:
-        paper = paper_from_paperid(paper_id)
+    for paper in ui_papers_from_paperids(topic_ids):
         for citation in paper['citations']:
             topic_citation_ids.add(citation['paperId'])
 
     # compute co-citation score for all papers adjacent to the topic
     v = list()
-    for paper_id in set(adjacent_paperids(topic_ids)):
-        paper = paper_from_paperid(paper_id)
+    adjacent_ids = set(adjacent_paperids(topic_ids))
+    for paper in ui_papers_from_paperids(adjacent_ids):
         if 'citations' not in paper or 'title' not in paper:
             continue
         cocitations = sum(citation['paperId'] in topic_citation_ids for citation in paper['citations'])
         connected = int(topic_connectedness(topic_ids, paper) > 0)
-        v.append((paper_id, paper['title'], connected, cocitations))
+        v.append((paper['paperId'], paper['title'], connected, cocitations))
 
     # sort v by if it is connected and then by number of co-citations
     v = sorted(v, key=lambda x: x[3], reverse=True)
     v = sorted(v, key=lambda x: x[2], reverse=True)
 
     # the user indicates which papers to add to the topic
-    choices = [f'[{connected}, {cocitations}] ' + title for _, title, connected, cocitations in v]
-    paperid_from_choice = {choice: paper_id for choice, (paper_id, _, _, _) in zip(choices, v)}
-    questions = [inquirer.Checkbox(
-        'choices',
-        message="Select papers to add to the topic",
-        choices=choices,
-    )]
-    answers = inquirer.prompt(questions)
+    choices = [{'name': f'[{connected}, {cocitations}] ' + title} for _, title, connected, cocitations in v]
+    print(choices)
+    paperid_from_choice = {choice['name']: paper_id for choice, (paper_id, _, _, _) in zip(choices, v)}
+    questions = [
+        {
+            'type': 'checkbox',
+            'name': 'choices',
+            'message': 'Select papers to add to the topic',
+            'choices': choices,
+        },
+    ]
+    answers = PyInquirer.prompt(questions)
+    print('--------')
     selected_ids = [paperid_from_choice[choice] for choice in answers['choices']]
     for paper_id in selected_ids:
         print('Adding:', paper_from_paperid(paper_id)['title'])
@@ -385,18 +374,25 @@ def topic_ui_loop():
         return
     while True:
         questions = [
-            inquirer.List(
-                'action',
-                message=f'Select action for [{topic_name}]',
-                choices=[
-                    'add papers', 'remove papers', 'discover papers',
-                    'rank papers', 'rank adjacent papers',
-                    'list papers', 'list references', 'show citation graph',
-                    'save', 'exit'
+            {
+                'type': 'list',
+                'name': 'action',
+                'message': f'Select action for [{topic_name}]',
+                'choices': [
+                    'add papers',
+                    'remove papers',
+                    'discover papers',
+                    'rank papers',
+                    'rank adjacent papers',
+                    'list papers',
+                    'list references',
+                    'show citation graph',
+                    'save',
+                    'exit'
                 ],
-            ),
+            },
         ]
-        answers = inquirer.prompt(questions)
+        answers = PyInquirer.prompt(questions)
         if answers['action'] == 'add papers':
             add_papers_to_topic(topic)
         elif answers['action'] == 'remove papers':
@@ -428,13 +424,20 @@ def ui_loop():
     '''main ui loop'''
     while True:
         questions = [
-            inquirer.List(
-                'action',
-                message="Select action",
-                choices=['select topic', 'create topic', 'delete topic', 'list topics', 'exit'],
-            ),
+            {
+                'type': 'list',
+                'name': 'action',
+                'message': 'Select action',
+                'choices': [
+                    'select topic',
+                    'create topic',
+                    'delete topic',
+                    'list topics',
+                    'exit',
+                ],
+            }
         ]
-        answers = inquirer.prompt(questions)
+        answers = PyInquirer.prompt(questions)
         if answers['action'] == 'select topic':
             topic_ui_loop()
         elif answers['action'] == 'list topics':
