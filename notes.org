@@ -1,0 +1,93 @@
+* Goal
+
+Find the foundational papers in a given field.
+
+1. Find all of the papers on a given topic.
+2. Rank them by the extent to which they have influenced research on
+   the topic.
+
+* Procedure
+
+1. Initialize the system with a small number of papers in the field.
+2. Collect all papers adjacent to the papers in the field.
+3. Sort the collected papers by the number of connections they have to
+   the papers in the field.
+4. For each paper, mark it as part of the field, as an external
+   reference, or skip it.
+5. Repeat 2-4 until all there are no more papers in the field.
+6. Rank the papers by the extent to which they have influenced the
+   papers in the field. Present two lists: one of papers in the field
+   and one with papers outside of the field (external references).
+
+* Database
+
+Data is stored in the following MongoDB collections.
+- papers: Stores cached papers indexed by their SS ID.
+- topics: Topics indexed by their name.
+
+Each topic is represented by two lists that contain the paper IDs of
+the papers on the topic and their external references, respectively.
+
+* Issues
+** DONE Only print new papers in discover
+   CLOSED: [2019-09-28 Sat 13:59]
+** DONE More intelligent sorting in discover
+   CLOSED: [2019-10-03 Thu 22:37]
+- There are many papers with the same number of connections.
+- Consider sorting by the fraction of connections that are on the
+  topic.
+** DONE Remove/change papers in a topic
+   CLOSED: [2019-10-03 Thu 22:36]
+** DONE Rank important of papers on a topic
+   CLOSED: [2019-10-03 Thu 22:36]
+- PageRank
+** DONE Filter new papers
+   CLOSED: [2019-10-03 Thu 22:36]
+- Ignore obviously un-interesting papers.
+** DONE Co-citation score
+   CLOSED: [2019-10-03 Thu 22:36]
+- Try ordering papers by similarity by co-citation score.
+- Each paper that cites both A and B counts as a vote that A and B are
+  similar. Do this for all papers and sort them by how similar they
+  are.
+- We can extend co-citation score to topic co-citation by considering
+  papers that cite a paper (for which we don't know if it's on the
+  topic or not) with any paper on the topic as a vote that it should
+  be on the topic.
+** TODO Timestamp cached papers
+- We need to add a timestamp so that we know when to refresh them.
+** TODO Mark papers are on the topic OR external references in the same menu
+- Or never mark papers as external. I'm no longer convinced we need
+  it. With good enough sorting they won't obscure papers actually on
+  the topic anyway.
+** TODO Handle duplicate papers
+** TODO Faster queries
+- Split the operation in two. One operation queries the database for
+  many papers at a time.
+- The other operations starts downloading simultaneously.
+** TODO Color nodes by co-citations
+- That means we need to compute co-citations and store it as an
+  attribute of the nodes. Although, we could also just compute it for
+  the nodes with PR in the top 10%.
+** TODO Plotting the graph requires getting all papers
+- Takes a long time if the papers aren't in the DB already and gives
+  no feedback.
+* Notes
+- Already a lot of papers to read. This adds more papers that should
+  be read. Prioritizes them by what currently working on.
+- Filters by authors and conferences that he knows are good.
+- Exciting new papers vs. fundamental papers demarcation.
+- Could learn how good authors and conferences are based on the
+  citation graph (PageRank) and notify when they publish papers with a
+  lot of connections to a topic.
+- Allow users to impact the score of a paper. Learning the user's
+  preferences.
+
+* Coded Computing Paper IDs
+071e2d29fdb816f5bfc95bcadc13c81838af0bd5
+84a6058eff938a8418ad90daf29db44fe530f277
+e9ce2d9d43de3d3ceb55066846cc81fb3202a0de
+05e7e07a393ea4cc6b6799ce170b682b7d4f3b6a
+1aa5b79f4076e7fecf3fb601d82d41533d8c40b1
+9bd329c944cd64049e432a233776ff5b10ab1285
+649d939d1349ae3c4b0afd82984953b67f48baf0
