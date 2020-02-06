@@ -222,6 +222,7 @@ def citegraph_from_paperids(paper_ids, G=None):
         G = nx.DiGraph()
     G.add_edges_from(edges_from_paperids(paper_ids))
     papers = [paper_from_paperid(paper_id) for paper_id in G.nodes()]
+    papers = [paper for paper in papers if paper is not None]
     nx.set_node_attributes(G, {
         paper['paperId']: paper for paper in papers
         if 'title' in paper and 'paperId' in paper
@@ -257,8 +258,8 @@ def topic_cocitations(G, topic_ids, name='cocitations'):
     attrs = dict()
     for paper_id in G.nodes():
         paper = paper_from_paperid(paper_id)
-        if 'citations' in paper:
-            cocitations = sum(citation['paperId'] in topic_citation_ids for citation in paper['citations'])
+        if paper is not None and 'citations' in paper:
+            cocitations = sum(citation['paperId'] in topic_citation_ids for citation in paper['citations']) / (len(paper['citations']) + 1)
         else:
             cotiations = 0
         attrs[paper_id] = cocitations
@@ -334,7 +335,7 @@ def ui_discover_topic(topic):
     for paper in ui_papers_from_paperids(adjacent_ids):
         if 'citations' not in paper or 'title' not in paper:
             continue
-        cocitations = sum(citation['paperId'] in topic_citation_ids for citation in paper['citations'])
+        cocitations = sum(citation['paperId'] in topic_citation_ids for citation in paper['citations']) / (len(paper['citations']) + 1)
         connected = int(topic_connectedness(topic_ids, paper) > 0)
         v.append((paper['paperId'], paper['title'], connected, cocitations))
 
