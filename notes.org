@@ -65,13 +65,22 @@ the papers on the topic and their external references, respectively.
 - Split the operation in two. One operation queries the database for
   many papers at a time.
 - The other operations starts downloading simultaneously.
-** TODO Color nodes by co-citations
+** DONE Color nodes by co-citations
+   CLOSED: [2019-10-22 Tue 16:24]
 - That means we need to compute co-citations and store it as an
   attribute of the nodes. Although, we could also just compute it for
   the nodes with PR in the top 10%.
 ** TODO Plotting the graph requires getting all papers
 - Takes a long time if the papers aren't in the DB already and gives
   no feedback.
+** TODO Discover on empty topic crash
+** TODO Automatic save
+- It makes more sense to save papers to the topic straight away rather
+  than forcing the user to save manually.
+** TODO Faster download
+- Downloading papers seems very slow at perhaps 1 paper per second.
+- Try downloading several in parallel.
+** TODO Color nodes by if on the topic or not
 * Notes
 - Already a lot of papers to read. This adds more papers that should
   be read. Prioritizes them by what currently working on.
