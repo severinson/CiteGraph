@@ -4,3 +4,4 @@ pymongo
 PyInquirer
 plotly
 numpy
+scipy
