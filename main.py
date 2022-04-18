@@ -9,7 +9,7 @@ from pymongo import MongoClient
 
 # MONGO_URI = 'localhost:27017'
 # MONGO_URI = 'mongodb://127.0.0.1:27017'
-MONGO_CLIENT = MongoClient('localhost', 27016)
+MONGO_CLIENT = MongoClient('localhost', 27017)
 MONGO_DB = MONGO_CLIENT['CiteGraph']
 
 @ratelimit.rate_limited(10) # calls per second
@@ -23,7 +23,7 @@ def paper_from_paperid(paperid, collection_name='papers', refresh=False):
     collection = MONGO_DB[collection_name]
 
     # try to get a cached entry
-    if collection and not refresh:
+    if collection is not None and not refresh:
         rv = collection.find_one({'_id': paperid})
         if rv is not None:
             return rv
@@ -38,7 +38,7 @@ def paper_from_paperid(paperid, collection_name='papers', refresh=False):
 
     # cache the response
     dct['_id'] = paperid
-    if collection:
+    if collection is not None:
         collection.insert_one(dct)
     return dct
 
@@ -188,10 +188,12 @@ def topic_connection_fraction(papers, paper):
 def remove_papers_from_topic(topic):
     '''interactively remove papers from the topic'''
     papers = [paper_from_paperid(paper_id) for paper_id in topic['papers']]
-    choices = sorted([paper['title'] for paper in papers])
+    titles = sorted([paper['title'] for paper in papers])
+    choices = [{'name': title} for title in titles]
     paperid_from_title = {paper['title']: paper['paperId'] for paper in papers}
     questions = [
         {
+            'name': 'choices',
             'type': 'checkbox',
             'message': 'Select papers to remove from the topic',
             'choices': choices,
